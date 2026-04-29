@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backtest Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:        #080c10;
+    --surface:   #0d1520;
+    --border:    #1a2a3a;
+    --accent:    #00e5ff;
+    --green:     #00ff88;
+    --red:       #ff3b5c;
+    --yellow:    #ffd060;
+    --text:      #c8d8e8;
+    --muted:     #4a6080;
+    --card-glow: 0 0 30px rgba(0,229,255,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 28px;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+
+  .meta { text-align: right; color: var(--muted); font-size: 11px; line-height: 1.8; }
+  .meta strong { color: var(--text); }
+
+  /* ── VERDICT BANNER ── */
+  .verdict {
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-bottom: 28px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid;
+    animation: fadeIn 0.6s ease;
+  }
+  .verdict.good   { background: rgba(0,255,136,0.07); border-color: rgba(0,255,136,0.3); color: var(--green); }
+  .verdict.bad    { background: rgba(255,59,92,0.07);  border-color: rgba(255,59,92,0.3);  color: var(--red); }
+  .verdict.warn   { background: rgba(255,208,96,0.07); border-color: rgba(255,208,96,0.3); color: var(--yellow); }
+
+  /* ── STAT GRID ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    box-shadow: var(--card-glow);
+    animation: slideUp 0.5s ease both;
+  }
+  .stat:nth-child(1) { animation-delay: 0.05s; }
+  .stat:nth-child(2) { animation-delay: 0.10s; }
+  .stat:nth-child(3) { animation-delay: 0.15s; }
+  .stat:nth-child(4) { animation-delay: 0.20s; }
+  .stat:nth-child(5) { animation-delay: 0.25s; }
+  .stat:nth-child(6) { animation-delay: 0.30s; }
+  .stat:nth-child(7) { animation-delay: 0.35s; }
+  .stat:nth-child(8) { animation-delay: 0.40s; }
+
+  .stat-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #fff; line-height: 1; }
+  .stat-value.up   { color: var(--green); }
+  .stat-value.down { color: var(--red); }
+  .stat-value.warn { color: var(--yellow); }
+  .stat-sub { color: var(--muted); font-size: 10px; margin-top: 6px; }
+
+  /* ── CHARTS ROW ── */
+  .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--card-glow);
+  }
+
+  .card-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  canvas { max-height: 240px; }
+
+  /* ── TRADES TABLE ── */
+  .trades-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid rgba(26,42,58,0.6); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(0,229,255,0.02); }
+  .win { color: var(--green); }
+  .loss { color: var(--red); }
+
+  /* ── INSTRUCTIONS ── */
+  .instructions {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    line-height: 2;
+  }
+  .instructions h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  code {
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.15);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  /* ── LOADER ── */
+  #loader {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+  }
+  #loader .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  #dashboard { display: none; }
+  #nofile    { display: none; text-align: center; padding: 60px 20px; color: var(--muted); }
+  #nofile h2 { font-family: 'Syne', sans-serif; color: var(--yellow); margin-bottom: 12px; font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">ALGO<span>LENS</span></div>
+    <div class="meta" id="meta-info">Loading...</div>
+  </header>
+
+  <div id="loader">
+    <div class="spinner"></div>
+    Looking for results.json...
+  </div>
+
+  <div id="nofile">
+    <h2>⚠ No results.json found</h2>
+    <p>Run <code>python backtest.py</code> first, then open this file again.</p>
+  </div>
+
+  <div id="dashboard">
+    <div class="verdict" id="verdict-banner"></div>
+
+    <div class="stats" id="stats-grid"></div>
+
+    <div class="charts">
+      <div class="card">
+        <div class="card-title">Equity Curve</div>
+        <canvas id="equityChart"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">Win / Loss Breakdown</div>
+        <canvas id="winLossChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-title">PnL Per Trade (last 50)</div>
+      <canvas id="pnlChart"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Trade Log</div>
+      <div class="trades-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>PnL (₹)</th>
+              <th>After Commission (₹)</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="trade-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="instructions" id="setup-box">
+    <h3>HOW TO USE</h3>
+    <p>1. Install: <code>pip install backtrader yfinance pandas matplotlib</code></p>
+    <p>2. Edit <code>backtest.py</code> — change SYMBOL, dates, capital</p>
+    <p>3. Run: <code>python backtest.py</code></p>
+    <p>4. Open this <code>dashboard.html</code> — results load automatically from <code>results.json</code></p>
+    <p>5. Both files must be in the same folder</p>
+  </div>
+
+</div>
+
+<script>
+// ── Try loading results.json ──
+async function loadResults() {
+  try {
+    const res = await fetch('results.json');
+    if (!res.ok) throw new Error('not found');
+    const d = await res.json();
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    render(d);
+  } catch {
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('nofile').style.display = 'block';
+  }
+}
+
+function fmt(n, decimals = 2) {
+  return Number(n).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function render(d) {
+  // Meta
+  document.getElementById('meta-info').innerHTML =
+    `<strong>${d.symbol}</strong><br>${d.start} → ${d.end}`;
+
+  // Verdict
+  const vb = document.getElementById('verdict-banner');
+  if (d.sharpe_ratio > 1.0 && d.win_rate_pct > 50) {
+    vb.className = 'verdict good';
+    vb.innerHTML = '✅ &nbsp;SOLID STRATEGY — worth paper trading before going live';
+  } else if (d.total_return_pct > 0) {
+    vb.className = 'verdict warn';
+    vb.innerHTML = '⚠️ &nbsp;MARGINAL — profitable but needs more optimization';
+  } else {
+    vb.className = 'verdict bad';
+    vb.innerHTML = '❌ &nbsp;STRATEGY FAILED — lost money. Do NOT go live.';
+  }
+
+  // Stats
+  const ret = d.total_return_pct;
+  const retClass = ret >= 0 ? 'up' : 'down';
+  const ddClass  = d.max_drawdown_pct > 20 ? 'down' : d.max_drawdown_pct > 10 ? 'warn' : 'up';
+  const sharpeClass = d.sharpe_ratio > 1 ? 'up' : d.sharpe_ratio > 0.5 ? 'warn' : 'down';
+  const winClass = d.win_rate_pct > 55 ? 'up' : d.win_rate_pct > 45 ? 'warn' : 'down';
+
+  const statsData = [
+    { label: 'Total Return',    value: `${ret >= 0 ? '+' : ''}${fmt(ret)}%`,       cls: retClass,    sub: `₹${fmt(d.initial_capital,0)} → ₹${fmt(d.final_capital,0)}` },
+    { label: 'CAGR',            value: `${fmt(d.cagr_pct)}%/yr`,                   cls: retClass,    sub: 'Compounded annual growth' },
+    { label: 'Sharpe Ratio',    value: fmt(d.sharpe_ratio, 3),                     cls: sharpeClass, sub: '>1.0 good  |  >2.0 great' },
+    { label: 'Max Drawdown',    value: `-${fmt(d.max_drawdown_pct)}%`,             cls: ddClass,     sub: 'Worst peak-to-trough loss' },
+    { label: 'Total Trades',    value: d.total_trades,                             cls: '',          sub: `${d.winning_trades}W  /  ${d.losing_trades}L` },
+    { label: 'Win Rate',        value: `${fmt(d.win_rate_pct, 1)}%`,               cls: winClass,    sub: '>50% needed' },
+    { label: 'Profit Factor',   value: fmt(d.profit_factor, 2),                    cls: d.profit_factor >= 1.5 ? 'up' : 'warn', sub: '>1.5 = acceptable' },
+    { label: 'Avg Win / Loss',  value: `₹${fmt(d.avg_win,0)}`,                    cls: 'up',        sub: `Avg loss: ₹${fmt(Math.abs(d.avg_loss),0)}` },
+  ];
+
+  document.getElementById('stats-grid').innerHTML = statsData.map(s => `
+    <div class="stat">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value ${s.cls}">${s.value}</div>
+      <div class="stat-sub">${s.sub}</div>
+    </div>
+  `).join('');
+
+  // Equity chart
+  const eq = d.equity_curve || [];
+  const eqLabels = eq.filter((_, i) => i % Math.max(1, Math.floor(eq.length / 60)) === 0).map(e => e.date);
+  const eqVals   = eq.filter((_, i) => i % Math.max(1, Math.floor(eq.length / 60)) === 0).map(e => e.equity);
+  const eqColor  = eqVals[eqVals.length - 1] >= eqVals[0] ? '#00ff88' : '#ff3b5c';
+
+  new Chart(document.getElementById('equityChart'), {
+    type: 'line',
+    data: {
+      labels: eqLabels,
+      datasets: [{
+        data: eqVals,
+        borderColor: eqColor,
+        borderWidth: 2,
+        fill: true,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 240);
+          g.addColorStop(0, eqColor + '33');
+          g.addColorStop(1, eqColor + '00');
+          return g;
+        },
+        pointRadius: 0,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a6080', maxTicksLimit: 8, font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1a2a3a' } },
+        y: { ticks: { color: '#4a6080', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '₹' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#1a2a3a' } }
+      }
+    }
+  });
+
+  // Win/Loss donut
+  new Chart(document.getElementById('winLossChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Winning Trades', 'Losing Trades'],
+      datasets: [{
+        data: [d.winning_trades, d.losing_trades],
+        backgroundColor: ['#00ff8866', '#ff3b5c66'],
+        borderColor:     ['#00ff88', '#ff3b5c'],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: '#c8d8e8', font: { family: 'JetBrains Mono', size: 11 } } }
+      },
+      cutout: '65%',
+    }
+  });
+
+  // PnL bar chart
+  const trades  = (d.trades || []).slice(-50);
+  const pnlVals = trades.map(t => t.pnlcomm);
+  const pnlCols = pnlVals.map(v => v >= 0 ? '#00ff8899' : '#ff3b5c99');
+  const pnlBord = pnlVals.map(v => v >= 0 ? '#00ff88' : '#ff3b5c');
+
+  new Chart(document.getElementById('pnlChart'), {
+    type: 'bar',
+    data: {
+      labels: trades.map(t => t.date),
+      datasets: [{ data: pnlVals, backgroundColor: pnlCols, borderColor: pnlBord, borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a6080', maxTicksLimit: 12, font: { family: 'JetBrains Mono', size: 9 } }, grid: { display: false } },
+        y: { ticks: { color: '#4a6080', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '₹' + v }, grid: { color: '#1a2a3a' } }
+      }
+    }
+  });
+
+  // Trade table
+  const tbody = document.getElementById('trade-tbody');
+  tbody.innerHTML = (d.trades || []).map((t, i) => `
+    <tr>
+      <td style="color:var(--muted)">${i + 1}</td>
+      <td>${t.date}</td>
+      <td class="${t.pnl >= 0 ? 'win' : 'loss'}">${t.pnl >= 0 ? '+' : ''}₹${fmt(t.pnl)}</td>
+      <td class="${t.pnlcomm >= 0 ? 'win' : 'loss'}">${t.pnlcomm >= 0 ? '+' : ''}₹${fmt(t.pnlcomm)}</td>
+      <td class="${t.won ? 'win' : 'loss'}">${t.won ? '✓ WIN' : '✗ LOSS'}</td>
+    </tr>
+  `).join('');
+}
+
+loadResults();
+</script>
+</body>
+</html>
